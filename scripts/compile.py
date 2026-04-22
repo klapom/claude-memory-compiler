@@ -137,6 +137,7 @@ Read the daily log above and compile it into wiki articles following the schema 
                 allowed_tools=["Read", "Write", "Edit", "Glob", "Grep"],
                 permission_mode="acceptEdits",
                 max_turns=30,
+                model="claude-sonnet-4-6",
             ),
         ):
             if isinstance(message, AssistantMessage):

@@ -53,19 +53,35 @@ def save_flush_state(state: dict) -> None:
     STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
 
 
-def append_to_daily_log(content: str, section: str = "Session") -> None:
-    """Append content to today's daily log."""
-    today = datetime.now(timezone.utc).astimezone()
-    log_path = DAILY_DIR / f"{today.strftime('%Y-%m-%d')}.md"
+def append_to_daily_log(
+    content: str,
+    section: str = "Session",
+    *,
+    date: str | None = None,
+    time_str: str | None = None,
+) -> None:
+    """Append content to a daily log.
+
+    By default writes to today's log. For backfill, pass explicit `date`
+    (YYYY-MM-DD) and `time_str` (HH:MM) to target a historical log.
+    """
+    if date is None:
+        today = datetime.now(timezone.utc).astimezone()
+        date = today.strftime("%Y-%m-%d")
+        if time_str is None:
+            time_str = today.strftime("%H:%M")
+    elif time_str is None:
+        time_str = "00:00"
+
+    log_path = DAILY_DIR / f"{date}.md"
 
     if not log_path.exists():
         DAILY_DIR.mkdir(parents=True, exist_ok=True)
         log_path.write_text(
-            f"# Daily Log: {today.strftime('%Y-%m-%d')}\n\n## Sessions\n\n## Memory Maintenance\n\n",
+            f"# Daily Log: {date}\n\n## Sessions\n\n## Memory Maintenance\n\n",
             encoding="utf-8",
         )
 
-    time_str = today.strftime("%H:%M")
     entry = f"### {section} ({time_str})\n\n{content}\n\n"
 
     with open(log_path, "a", encoding="utf-8") as f:
@@ -123,6 +139,7 @@ respond with exactly: FLUSH_OK
                 cwd=str(ROOT),
                 allowed_tools=[],
                 max_turns=2,
+                model="claude-haiku-4-5",
             ),
         ):
             if isinstance(message, AssistantMessage):
