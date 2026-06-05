@@ -57,7 +57,9 @@ _SECRET = re.compile(
     ]),
     re.DOTALL | re.IGNORECASE,
 )
-_PRIVATE_IP = re.compile(r"\b(?:192\.168|10\.|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b")
+_PRIVATE_IP = re.compile(
+    r"\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b"
+)
 _PHONE = re.compile(r"\+\d[\d\s/().-]{8,}\d")
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 _EMAIL_OK = {"noreply@anthropic.com", "seed@pommerconsulting.de"}
