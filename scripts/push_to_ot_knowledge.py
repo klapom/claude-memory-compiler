@@ -49,18 +49,43 @@ USER = _resolve_user()
 
 _SECRET = re.compile(
     "|".join("(?:%s)" % p for p in [
-        r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}",
-        r"-----BEGIN (?:OPENSSH|RSA|EC) PRIVATE KEY-----.*?-----END [^-]*-----",
+        r"ghp_[A-Za-z0-9]{20,}", r"github_pat_[A-Za-z0-9_]{20,}", r"xox[bpas]-[A-Za-z0-9-]{10,}",
+        r"AKIA[0-9A-Z]{16}", r"-----BEGIN (?:OPENSSH|RSA|EC) PRIVATE KEY-----.*?-----END [^-]*-----",
         r"[A-Za-z0-9]{30,}\.access", r"client_secret['\"\s:=]+[A-Za-z0-9._-]{16,}",
-        r"(?:api[_-]?key|token|password|secret)['\"\s:=]+[A-Za-z0-9._/+-]{16,}",
-        r"\b[0-9a-f]{40}\b", r"\b[0-9a-f]{64}\b",
+        r"(?:api[_-]?key|token|password|passwort|secret|bearer)['\"\s:=]+[A-Za-z0-9._/+-]{16,}",
+        r"\b[0-9a-f]{32,64}\b",  # incl. 32-hex (CF account/tunnel ids)
     ]),
     re.DOTALL | re.IGNORECASE,
 )
+_PRIVATE_IP = re.compile(r"\b(?:192\.168|10\.|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b")
+_PHONE = re.compile(r"\+\d[\d\s/().-]{8,}\d")
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_EMAIL_OK = {"noreply@anthropic.com", "seed@pommerconsulting.de"}
+
+
+def _denylist_terms() -> list[str]:
+    """Customer/sensitive terms -> [Kunde]. Default + gitignored mcp_denylist.txt."""
+    terms = ["johannes heidenhain", "heidenhain"]
+    f = ROOT / "mcp_denylist.txt"
+    if f.exists():
+        terms += [ln.strip() for ln in f.read_text(encoding="utf-8").splitlines()
+                  if ln.strip() and not ln.startswith("#")]
+    return terms
+
+
+_DENY = re.compile("|".join(re.escape(t) for t in _denylist_terms()), re.IGNORECASE)
 
 
 def _redact(text: str) -> tuple[str, int]:
-    return _SECRET.subn("[REDACTED-SECRET]", text)
+    """Scrub secrets + customer names + PII (email/IP/phone) before any push."""
+    n = 0
+    text, c = _SECRET.subn("[REDACTED-SECRET]", text); n += c
+    text, c = _DENY.subn("[Kunde]", text); n += c
+    text, c = _PRIVATE_IP.subn("[internal-ip]", text); n += c
+    text, c = _PHONE.subn("[phone]", text); n += c
+    n += sum(1 for e in _EMAIL.findall(text) if e.lower() not in _EMAIL_OK)
+    text = _EMAIL.sub(lambda m: m.group(0) if m.group(0).lower() in _EMAIL_OK else "[email]", text)
+    return text, n
 
 
 # ── minimal Streamable-HTTP MCP client ──────────────────────────────────

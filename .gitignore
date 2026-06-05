@@ -38,5 +38,6 @@ mcp_pending.txt
 mcp_excluded.txt
 mcp_target.txt
 mcp_user.txt
+mcp_denylist.txt
 scripts/mcp_push_state.json
 STATUS_SETUP_*.md
