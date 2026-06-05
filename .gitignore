@@ -31,3 +31,12 @@ scripts/uv.lock
 Thumbs.db
 
 .obsidian/
+
+# MCP curation/sync state (per-machine, never committed)
+mcp_allowlist.txt
+mcp_pending.txt
+mcp_excluded.txt
+mcp_target.txt
+mcp_user.txt
+scripts/mcp_push_state.json
+STATUS_SETUP_*.md

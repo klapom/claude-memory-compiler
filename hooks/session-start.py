@@ -26,9 +26,29 @@ ROOT = Path(__file__).resolve().parent.parent
 KNOWLEDGE_DIR = ROOT / "knowledge"
 DAILY_DIR = ROOT / "daily"
 INDEX_FILE = KNOWLEDGE_DIR / "index.md"
+PENDING_FILE = ROOT / "mcp_pending.txt"
 
 MAX_CONTEXT_CHARS = 20_000
 MAX_LOG_LINES = 30
+
+
+def get_pending_reminder() -> str:
+    """Pending MCP-approval reminder — only rendered when something awaits a decision."""
+    if not PENDING_FILE.exists():
+        return ""
+    items = [ln.strip() for ln in PENDING_FILE.read_text(encoding="utf-8").splitlines()
+             if ln.strip() and not ln.startswith("#")]
+    if not items:
+        return ""
+    lst = "\n".join(f"- {a}" for a in items[:30])
+    extra = f"\n- … (+{len(items) - 30} weitere)" if len(items) > 30 else ""
+    return (
+        f"## ⏳ MCP-Freigabe ausstehend ({len(items)})\n\n"
+        f"Diese kompilierten OT-Artikel warten auf deine Freigabe für den ot-knowledge MCP:\n"
+        f"{lst}{extra}\n\n"
+        f"Freigeben: `uv run python scripts/curate.py approve <name>` (oder `--all`) · "
+        f"Verwerfen: `… exclude <name>` · Danach: `uv run python scripts/push_to_ot_knowledge.py`"
+    )
 
 
 def get_recent_log() -> str:
@@ -54,6 +74,11 @@ def build_context() -> str:
     # Today's date
     today = datetime.now(timezone.utc).astimezone()
     parts.append(f"## Today\n{today.strftime('%A, %B %d, %Y')}")
+
+    # Pending MCP-approval reminder (only when non-empty)
+    reminder = get_pending_reminder()
+    if reminder:
+        parts.append(reminder)
 
     # Knowledge base index (the core retrieval mechanism)
     if INDEX_FILE.exists():
