@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import fcntl
 import sys
 from pathlib import Path
 
-from config import COMPILE_MODEL, AGENTS_FILE, CONCEPTS_DIR, CONNECTIONS_DIR, DAILY_DIR, KNOWLEDGE_DIR, now_iso
+from config import COMPILE_MODEL, lean_cli_options, SCRIPTS_DIR, AGENTS_FILE, CONCEPTS_DIR, CONNECTIONS_DIR, DAILY_DIR, KNOWLEDGE_DIR, now_iso
 from utils import (
     file_hash,
     list_raw_files,
@@ -95,12 +96,14 @@ Read the daily log above and compile it into wiki articles following the schema 
 
 ### Rules:
 
-1. **Extract key concepts** - Identify 3-7 distinct concepts worth their own article
+1. **Extract durable knowledge** - Only what a future session needs: decisions, measured
+   facts, root causes, gotchas. Zero new articles is a valid result; prefer updating an
+   existing article over creating a near-duplicate.
 2. **Create concept articles** in `knowledge/concepts/` - One .md file per concept
-   - Use the exact article format from AGENTS.md (YAML frontmatter + sections)
+   - Use the article format from AGENTS.md (YAML frontmatter + sections)
    - Include `sources:` in frontmatter pointing to the daily log file
-   - Use `[[concepts/slug]]` wikilinks to link to related concepts
-   - Write in encyclopedia style - neutral, comprehensive
+   - Use `[[concepts/slug]]` wikilinks only where the log states a real relation
+   - Write concise and factual; length follows the evidence, not a template
 3. **Create connection articles** in `knowledge/connections/` if this log reveals non-obvious
    relationships between 2+ existing concepts
 4. **Update existing articles** if this log adds new information to concepts already in the wiki
@@ -121,13 +124,22 @@ Read the daily log above and compile it into wiki articles following the schema 
 - Update index at: {KNOWLEDGE_DIR / 'index.md'}
 - Append log at: {KNOWLEDGE_DIR / 'log.md'}
 
-### Quality standards:
-- Every article must have complete YAML frontmatter
-- Every article must link to at least 2 other articles via [[wikilinks]]
-- Key Points section should have 3-5 bullet points
-- Details section should have 2+ paragraphs
-- Related Concepts section should have 2+ entries
-- Sources section should cite the daily log with specific claims extracted
+### Evidence rules (override any length or section minimum in AGENTS.md):
+- **Nothing without a source.** Every statement, number, mechanism, comparison or
+  table cell must be traceable to a line in this daily log or in the existing article
+  you are updating. Do not fill gaps from general knowledge, do not explain how
+  something "probably works", do not estimate effects the log does not state.
+- **Keep claim and evidence apart.** Where the log gives a command/measurement and its
+  result, keep both. Where the log only states a conclusion or assumption without a
+  measurement, write it as such and mark it "not verified".
+- **Name residual uncertainty** instead of smoothing it over; a counter-check that the
+  log does not mention did not happen.
+- **Contradictions:** if the log contradicts an existing article, update the article
+  with the newer dated statement and mark the old one as superseded (with its date) -
+  never merge both silently.
+- Sections without evidence stay short or are omitted; no filler paragraphs, no
+  invented "Related Concepts".
+- Every article must have complete YAML frontmatter and cite the daily log in Sources.
 """
 
     cost = 0.0
@@ -142,6 +154,7 @@ Read the daily log above and compile it into wiki articles following the schema 
                 permission_mode="acceptEdits",
                 max_turns=30,
                 model=COMPILE_MODEL,
+                **lean_cli_options(["Read", "Write", "Edit", "Glob", "Grep"]),
             ),
         ):
             if isinstance(message, AssistantMessage):
@@ -152,7 +165,11 @@ Read the daily log above and compile it into wiki articles following the schema 
                 # total_cost_usd is the SDK's tokens x list-price estimate. It is not
                 # an actual charge when the CLI runs on a Claude subscription login.
                 cost = message.total_cost_usd or 0.0
-                print(f"  List-price equivalent: ${cost:.4f} (model {COMPILE_MODEL})")
+                u = message.usage or {}
+                tokens_in = (u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+                             + u.get("cache_read_input_tokens", 0))
+                print(f"  List-price equivalent: ${cost:.4f} (model {COMPILE_MODEL}, "
+                      f"{message.num_turns} turns, {tokens_in} input tokens)")
     except Exception as e:
         print(f"  Error: {e}")
         return 0.0
@@ -176,6 +193,17 @@ def main():
     parser.add_argument("--file", type=str, help="Compile a specific daily log file")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be compiled")
     args = parser.parse_args()
+
+    if not args.dry_run:
+        # Several flushes can spawn compile.py at nearly the same moment; without a
+        # lock they compiled the same logs in parallel into the same articles
+        # (2026-10-26: 4 runs within 3 minutes). The lock is released on exit.
+        lock_file = open(SCRIPTS_DIR / "compile.lock", "w")
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print(f"[{now_iso()}] Another compile is running - exiting.")
+            return
 
     state = load_state()
 

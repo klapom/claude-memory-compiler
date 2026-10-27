@@ -20,10 +20,10 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from config import FLUSH_MODEL
+from config import COMPILE_INTERVAL_DAYS, FLUSH_MODEL, lean_cli_options
 
 ROOT = Path(__file__).resolve().parent.parent
 DAILY_DIR = ROOT / "daily"
@@ -139,9 +139,9 @@ respond with exactly: FLUSH_OK
             prompt=prompt,
             options=ClaudeAgentOptions(
                 cwd=str(ROOT),
-                allowed_tools=[],
                 max_turns=2,
                 model=FLUSH_MODEL,
+                **lean_cli_options([]),
             ),
         ):
             if isinstance(message, AssistantMessage):
@@ -149,7 +149,10 @@ respond with exactly: FLUSH_OK
                     if isinstance(block, TextBlock):
                         response += block.text
             elif isinstance(message, ResultMessage):
-                pass
+                u = message.usage or {}
+                tokens_in = (u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+                             + u.get("cache_read_input_tokens", 0))
+                logging.info("Usage: %d input tokens, %d output tokens", tokens_in, u.get("output_tokens", 0))
     except Exception as e:
         import traceback
         logging.error("Agent SDK error: %s\n%s", e, traceback.format_exc())
@@ -162,36 +165,33 @@ COMPILE_AFTER_HOUR = 18  # 6 PM local time
 
 
 def maybe_trigger_compilation() -> None:
-    """If it's past the compile hour and today's log hasn't been compiled, run compile.py."""
+    """Spawn compile.py once per COMPILE_INTERVAL_DAYS, after the compile hour.
+
+    compile.py picks up every daily log that is new or changed since its last
+    compile, so a weekly run covers the whole week."""
     import subprocess as _sp
 
     now = datetime.now(timezone.utc).astimezone()
     if now.hour < COMPILE_AFTER_HOUR:
         return
 
-    # Check if today's log has already been compiled
-    today_log = f"{now.strftime('%Y-%m-%d')}.md"
+    # Skip if the last compile is younger than the interval
     compile_state_file = SCRIPTS_DIR / "state.json"
     if compile_state_file.exists():
         try:
             compile_state = json.loads(compile_state_file.read_text(encoding="utf-8"))
-            ingested = compile_state.get("ingested", {})
-            if today_log in ingested:
-                # Already compiled today - check if the log has changed since
-                from hashlib import sha256
-                log_path = DAILY_DIR / today_log
-                if log_path.exists():
-                    current_hash = sha256(log_path.read_bytes()).hexdigest()[:16]
-                    if ingested[today_log].get("hash") == current_hash:
-                        return  # log unchanged since last compile
-        except (json.JSONDecodeError, OSError):
+            stamps = [v.get("compiled_at") for v in compile_state.get("ingested", {}).values()]
+            stamps = [datetime.fromisoformat(s) for s in stamps if s]
+            if stamps and now - max(stamps) < timedelta(days=COMPILE_INTERVAL_DAYS):
+                return
+        except (json.JSONDecodeError, OSError, ValueError):
             pass
 
     compile_script = SCRIPTS_DIR / "compile.py"
     if not compile_script.exists():
         return
 
-    logging.info("End-of-day compilation triggered (after %d:00)", COMPILE_AFTER_HOUR)
+    logging.info("Weekly compilation triggered (after %d:00, every %d days)", COMPILE_AFTER_HOUR, COMPILE_INTERVAL_DAYS)
 
     cmd = ["uv", "run", "--directory", str(ROOT), "python", str(compile_script)]
 

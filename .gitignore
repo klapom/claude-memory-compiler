@@ -41,3 +41,6 @@ mcp_user.txt
 mcp_denylist.txt
 scripts/mcp_push_state.json
 STATUS_SETUP_*.md
+
+# compile mutex (scripts/compile.py)
+scripts/compile.lock

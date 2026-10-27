@@ -15,7 +15,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from config import LINT_MODEL, KNOWLEDGE_DIR, REPORTS_DIR, now_iso, today_iso
+from config import LINT_MODEL, lean_cli_options, KNOWLEDGE_DIR, REPORTS_DIR, now_iso, today_iso
 from utils import (
     count_inbound_links,
     extract_wikilinks,
@@ -185,9 +185,9 @@ Do NOT output anything else - no preamble, no explanation, just the formatted li
             prompt=prompt,
             options=ClaudeAgentOptions(
                 cwd=str(ROOT_DIR),
-                allowed_tools=[],
                 max_turns=2,
                 model=LINT_MODEL,
+                **lean_cli_options([]),
             ),
         ):
             if isinstance(message, AssistantMessage):
