@@ -23,6 +23,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from config import FLUSH_MODEL
+
 ROOT = Path(__file__).resolve().parent.parent
 DAILY_DIR = ROOT / "daily"
 SCRIPTS_DIR = ROOT / "scripts"
@@ -139,7 +141,7 @@ respond with exactly: FLUSH_OK
                 cwd=str(ROOT),
                 allowed_tools=[],
                 max_turns=2,
-                model="claude-haiku-4-5",
+                model=FLUSH_MODEL,
             ),
         ):
             if isinstance(message, AssistantMessage):
@@ -237,7 +239,7 @@ def main():
         context_file.unlink(missing_ok=True)
         return
 
-    logging.info("Flushing session %s: %d chars", session_id, len(context))
+    logging.info("Flushing session %s: %d chars (model %s)", session_id, len(context), FLUSH_MODEL)
 
     # Run the LLM extraction
     response = asyncio.run(run_flush(context))

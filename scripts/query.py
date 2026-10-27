@@ -16,7 +16,7 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from config import KNOWLEDGE_DIR, QA_DIR, now_iso
+from config import QUERY_MODEL, KNOWLEDGE_DIR, QA_DIR, now_iso
 from utils import load_state, read_all_wiki_content, save_state
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -91,6 +91,7 @@ consulting the knowledge base below.
                 allowed_tools=tools,
                 permission_mode="acceptEdits",
                 max_turns=15,
+                model=QUERY_MODEL,
             ),
         ):
             if isinstance(message, AssistantMessage):

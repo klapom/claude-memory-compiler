@@ -18,7 +18,7 @@ import asyncio
 import sys
 from pathlib import Path
 
-from config import AGENTS_FILE, CONCEPTS_DIR, CONNECTIONS_DIR, DAILY_DIR, KNOWLEDGE_DIR, now_iso
+from config import COMPILE_MODEL, AGENTS_FILE, CONCEPTS_DIR, CONNECTIONS_DIR, DAILY_DIR, KNOWLEDGE_DIR, now_iso
 from utils import (
     file_hash,
     list_raw_files,
@@ -141,7 +141,7 @@ Read the daily log above and compile it into wiki articles following the schema 
                 allowed_tools=["Read", "Write", "Edit", "Glob", "Grep"],
                 permission_mode="acceptEdits",
                 max_turns=30,
-                model="claude-sonnet-4-6",
+                model=COMPILE_MODEL,
             ),
         ):
             if isinstance(message, AssistantMessage):
@@ -150,7 +150,7 @@ Read the daily log above and compile it into wiki articles following the schema 
                         pass  # compilation output - LLM writes files directly
             elif isinstance(message, ResultMessage):
                 cost = message.total_cost_usd or 0.0
-                print(f"  Cost: ${cost:.4f}")
+                print(f"  Cost: ${cost:.4f} (model {COMPILE_MODEL})")
     except Exception as e:
         print(f"  Error: {e}")
         return 0.0

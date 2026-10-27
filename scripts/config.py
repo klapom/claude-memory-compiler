@@ -1,5 +1,6 @@
 """Path constants and configuration for the personal knowledge base."""
 
+import os
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -18,6 +19,15 @@ AGENTS_FILE = ROOT_DIR / "AGENTS.md"
 INDEX_FILE = KNOWLEDGE_DIR / "index.md"
 LOG_FILE = KNOWLEDGE_DIR / "log.md"
 STATE_FILE = SCRIPTS_DIR / "state.json"
+
+# ── Models ─────────────────────────────────────────────────────────────
+# One place to bump models. Override per run/machine via environment, e.g.
+#   MEMORY_COMPILER_COMPILE_MODEL=claude-opus-5-5 uv run python scripts/compile.py
+# flush runs after every session (cheap + fast); compile/lint/query reason over the KB.
+FLUSH_MODEL = os.environ.get("MEMORY_COMPILER_FLUSH_MODEL", "claude-haiku-5-5")
+COMPILE_MODEL = os.environ.get("MEMORY_COMPILER_COMPILE_MODEL", "claude-sonnet-5-5")
+QUERY_MODEL = os.environ.get("MEMORY_COMPILER_QUERY_MODEL", "claude-sonnet-5-5")
+LINT_MODEL = os.environ.get("MEMORY_COMPILER_LINT_MODEL", "claude-sonnet-5-5")
 
 # ── Timezone ───────────────────────────────────────────────────────────
 TIMEZONE = "America/Chicago"
