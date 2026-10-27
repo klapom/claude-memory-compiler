@@ -149,8 +149,10 @@ Read the daily log above and compile it into wiki articles following the schema 
                     if isinstance(block, TextBlock):
                         pass  # compilation output - LLM writes files directly
             elif isinstance(message, ResultMessage):
+                # total_cost_usd is the SDK's tokens x list-price estimate. It is not
+                # an actual charge when the CLI runs on a Claude subscription login.
                 cost = message.total_cost_usd or 0.0
-                print(f"  Cost: ${cost:.4f} (model {COMPILE_MODEL})")
+                print(f"  List-price equivalent: ${cost:.4f} (model {COMPILE_MODEL})")
     except Exception as e:
         print(f"  Error: {e}")
         return 0.0
@@ -221,7 +223,7 @@ def main():
         print(f"  Done.")
 
     articles = list_wiki_articles()
-    print(f"\nCompilation complete. Total cost: ${total_cost:.2f}")
+    print(f"\nCompilation complete. List-price equivalent: ${total_cost:.2f}")
     print(f"Knowledge base: {len(articles)} articles")
 
 
