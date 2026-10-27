@@ -49,19 +49,12 @@ async def compile_daily_log(log_path: Path, state: dict) -> float:
     schema = AGENTS_FILE.read_text(encoding="utf-8")
     wiki_index = read_wiki_index()
 
-    # Read existing articles for context
-    existing_articles_context = ""
-    existing = {}
-    for article_path in list_wiki_articles():
-        rel = article_path.relative_to(KNOWLEDGE_DIR)
-        existing[str(rel)] = article_path.read_text(encoding="utf-8")
-
-    if existing:
-        parts = []
-        for rel_path, content in existing.items():
-            parts.append(f"### {rel_path}\n```markdown\n{content}\n```")
-        existing_articles_context = "\n\n".join(parts)
-
+    # NB: existing articles are NOT inlined into the prompt anymore.
+    # The KB grew past 130+ articles (~190k tokens) and overflowed Sonnet 4.6's
+    # 200k context window, causing all compiles to fail with "Fatal error in
+    # message reader" since ~2026-05-22. The LLM has Read/Glob/Grep tools and
+    # will pull the specific articles it needs after scanning the index below.
+    article_count = len(list_wiki_articles())
     timestamp = now_iso()
 
     prompt = f"""You are a knowledge compiler. Your job is to read a daily conversation log
@@ -77,7 +70,11 @@ and extract knowledge into structured wiki articles.
 
 ## Existing Wiki Articles
 
-{existing_articles_context if existing_articles_context else "(No existing articles yet)"}
+The knowledge base currently has **{article_count} articles** under `knowledge/`.
+They are NOT included inline (would overflow the context window).
+Use the Read/Glob/Grep tools to inspect specific articles you need to update or
+cross-reference. The index above tells you what exists; pick 3–10 relevant ones
+based on the daily log topic and read them before deciding to create vs. update.
 
 ## Daily Log to Compile
 
@@ -88,6 +85,13 @@ and extract knowledge into structured wiki articles.
 ## Your Task
 
 Read the daily log above and compile it into wiki articles following the schema exactly.
+
+**Important — context-efficient workflow:**
+
+1. Skim the wiki index above and the daily log content
+2. Identify topics in the log that may already have articles → Read those specific articles via the Read tool (NOT every article)
+3. Use Glob/Grep if you need to discover articles by content/filename
+4. Then create new / update existing articles as needed
 
 ### Rules:
 
